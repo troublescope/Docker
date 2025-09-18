@@ -99,8 +99,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.names.outputs.image }}:buildcache-amd64
+          cache-to: type=registry,ref=${{ steps.names.outputs.image }}:buildcache-amd64,mode=max,compression=zstd
           pull: true
           build-args: |
             JOBS=${{ github.event_name == 'workflow_dispatch' && inputs.jobs || 4 }}
@@ -165,8 +165,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.names.outputs.image }}:buildcache-arm64
+          cache-to: type=registry,ref=${{ steps.names.outputs.image }}:buildcache-arm64,mode=max,compression=zstd
           pull: true
           build-args: |
             JOBS=${{ github.event_name == 'workflow_dispatch' && inputs.jobs || 4 }}
