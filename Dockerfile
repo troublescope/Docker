@@ -21,8 +21,13 @@ ARG GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 
 # metadata labels
-LABEL maintainer="Troublescope <121922135+troublescope@users.noreply.github.com>"
-
+LABEL org.opencontainers.image.title="Telegram Bot API Server" \
+      org.opencontainers.image.description="Minimal Alpine-based container for tdlib/telegram-bot-api server." \
+      org.opencontainers.image.url="https://github.com/tdlib/telegram-bot-api" \
+      org.opencontainers.image.source="https://github.com/${GITHUB_REPOSITORY}" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.authors="Troublescope <121922135+troublescope@users.noreply.github.com>"
+      
 RUN apk add --no-cache libstdc++ zlib openssl ca-certificates busybox
 COPY --from=builder /usr/local/bin/telegram-bot-api /usr/local/bin/telegram-bot-api
 RUN ln -sf /bin/busybox /usr/bin/wget
