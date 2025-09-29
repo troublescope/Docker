@@ -1,4 +1,4 @@
-name: Builder
+name: Build & Push (tg-bot-api)
 
 on:
   push:
@@ -34,64 +34,16 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  IMAGE_NAME: tg-bot-api
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  detect:
-    runs-on: ubuntu-24.04
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Detect all Dockerfiles
-        id: set-matrix
-        shell: bash
-        run: |
-          set -euo pipefail
-          
-          
-          files=$(find . -maxdepth 1 -type f -name "Dockerfile*" -printf '%f\n' | sort)
-          
-          
-          matrix_json="["
-          first=true
-          
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-           
-            if [ "$file" = "Dockerfile" ]; then
-              image_name="docker"
-            else
-              
-              image_name="${file#Dockerfile.}"
-            fi
-            
-            if [ "$first" = true ]; then
-              first=false
-            else
-              matrix_json="${matrix_json},"
-            fi
-            
-            matrix_json="${matrix_json}{\"dockerfile\":\"${file}\",\"image\":\"${image_name}\"}"
-          done <<< "$files"
-          
-          matrix_json="${matrix_json}]"
-          
-          echo "matrix=${matrix_json}" >> "$GITHUB_OUTPUT"
-          echo "Detected Dockerfiles:"
-          echo "$matrix_json" | jq '.'
-
   build_amd64:
-    needs: detect
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.arch == 'multi' || inputs.arch == 'amd64' }}
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        include: ${{ fromJson(needs.detect.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -102,7 +54,7 @@ jobs:
           set -euo pipefail
           : "${GITHUB_OUTPUT:?}"
           OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "image=${{ env.REGISTRY }}/${OWNER}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+          echo "image=${{ env.REGISTRY }}/${OWNER}/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
 
       - name: Set build variables
         id: buildvars
@@ -119,7 +71,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags) -amd64
+      - name: Extract metadata (tags/labels/annotations) -amd64
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -131,17 +83,27 @@ jobs:
             type=ref,event=tag
             type=sha
             ${{ github.event_name == 'workflow_dispatch' && inputs.extra_tag != '' && format('type=raw,value={0}-amd64', inputs.extra_tag) || '' }}
+          labels: |
+            org.opencontainers.image.title=Telegram Bot API Server
+            org.opencontainers.image.description=Minimal Alpine-based container for tdlib/telegram-bot-api server.
+            org.opencontainers.image.url=https://github.com/tdlib/telegram-bot-api
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.authors=${{ github.repository_owner }}
+            org.opencontainers.image.revision=${{ steps.buildvars.outputs.git_sha }}
+            org.opencontainers.image.created=${{ steps.buildvars.outputs.build_date }}
 
       - name: Build & push (linux/amd64)
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push) }}
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha,scope=${{ matrix.image }}-amd64
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-amd64
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha,scope=tg-bot-api-amd64
+          cache-to: type=gha,mode=max,scope=tg-bot-api-amd64
           pull: true
           build-args: |
             JOBS=${{ github.event_name == 'workflow_dispatch' && inputs.jobs || 4 }}
@@ -149,12 +111,8 @@ jobs:
             BUILD_DATE=${{ steps.buildvars.outputs.build_date }}
 
   build_arm64:
-    needs: detect
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.arch == 'multi' || inputs.arch == 'arm64' }}
     runs-on: ubuntu-24.04-arm
-    strategy:
-      matrix:
-        include: ${{ fromJson(needs.detect.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -165,7 +123,7 @@ jobs:
           set -euo pipefail
           : "${GITHUB_OUTPUT:?}"
           OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "image=${{ env.REGISTRY }}/${OWNER}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+          echo "image=${{ env.REGISTRY }}/${OWNER}/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
 
       - name: Set build variables
         id: buildvars
@@ -182,7 +140,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags) -arm64
+      - name: Extract metadata (tags/labels) -arm64
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -194,17 +152,26 @@ jobs:
             type=ref,event=tag
             type=sha
             ${{ github.event_name == 'workflow_dispatch' && inputs.extra_tag != '' && format('type=raw,value={0}-arm64', inputs.extra_tag) || '' }}
+          labels: |
+            org.opencontainers.image.title=Telegram Bot API Server
+            org.opencontainers.image.description=Minimal Alpine-based container for tdlib/telegram-bot-api server.
+            org.opencontainers.image.url=https://github.com/tdlib/telegram-bot-api
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.authors=${{ github.repository_owner }}
+            org.opencontainers.image.revision=${{ steps.buildvars.outputs.git_sha }}
+            org.opencontainers.image.created=${{ steps.buildvars.outputs.build_date }}
 
       - name: Build & push (linux/arm64)
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
           platforms: linux/arm64
           push: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push) }}
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha,scope=${{ matrix.image }}-arm64
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=tg-bot-api-arm64
+          cache-to: type=gha,mode=max,scope=tg-bot-api-arm64
           pull: true
           build-args: |
             JOBS=${{ github.event_name == 'workflow_dispatch' && inputs.jobs || 4 }}
@@ -212,12 +179,9 @@ jobs:
             BUILD_DATE=${{ steps.buildvars.outputs.build_date }}
 
   manifest:
-    needs: [detect, build_amd64, build_arm64]
+    needs: [build_amd64, build_arm64]
     if: ${{ (needs.build_amd64.result == 'success' || needs.build_arm64.result == 'success') && github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push) }}
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        include: ${{ fromJson(needs.detect.outputs.matrix) }}
     steps:
       - name: Normalize image name (lowercase)
         id: names
@@ -226,7 +190,7 @@ jobs:
           set -euo pipefail
           : "${GITHUB_OUTPUT:?}"
           OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "image=${{ env.REGISTRY }}/${OWNER}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+          echo "image=${{ env.REGISTRY }}/${OWNER}/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
 
       - name: Compute base tags
         id: meta
